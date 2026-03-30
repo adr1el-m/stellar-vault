@@ -1,20 +1,20 @@
-# PasadaFund - Stellar Fuel Relief DAO
+# PasadaFund - Stellar Route Resilience Protocol
 
-PasadaFund is a custom-built Soroban DAO focused on transparent fuel subsidy disbursement for Jeepney and Tricycle transport groups. It combines a real XLM on-chain treasury with member governance and a production-grade frontend integration.
+PasadaFund is a custom-built Soroban protocol focused on transparent route continuity support for Jeepney and Tricycle transport groups. It combines a real XLM on-chain reserve pool with member governance and a production-grade frontend integration.
 
 ## Vision
-Build a trustworthy public-good treasury where transport relief decisions are transparent, auditable, and community-governed directly on Stellar.
+Build a trustworthy public-good reserve protocol where transport support decisions are transparent, auditable, and community-governed directly on Stellar.
 
 ## Full-Stack Scope (One Repository)
 - `contracts/pasadafund`: Soroban smart contract (Rust)
 - `frontend`: React + Vite dashboard with Freighter + Stellar SDK integration
 
 ## Core Features
-- Real treasury transfers using `soroban_sdk::token::Client` against native XLM SAC
+- Real reserve-pool transfers using `soroban_sdk::token::Client` against native XLM SAC
 - Contributor-to-member governance model
-- Fuel subsidy proposal submission and on-chain voting
+- Route support proposal submission and on-chain voting
 - Approval threshold at 2 votes
-- On-chain execution that transfers treasury funds to recipient wallets
+- On-chain execution that transfers reserve-pool funds to recipient wallets
 - Frontend stroop-safe math with `BigInt` and 7-decimal precision
 - Static simulation account for stability in `simulateTransaction`
 - Dual RPC fallback for high-availability interaction
@@ -58,6 +58,19 @@ Use these values in `frontend/.env`:
 - `VITE_STELLAR_RPC_PRIMARY`
 - `VITE_STELLAR_RPC_SECONDARY`
 
+## Vercel Deployment
+This repository is configured for root-level Vercel deployment via `vercel.json`:
+- Install command: `npm --prefix frontend install`
+- Build command: `npm --prefix frontend run build`
+- Output directory: `frontend/dist`
+
+Set the following environment variables in your Vercel project settings:
+- `VITE_PASADAFUND_CONTRACT_ID`
+- `VITE_NATIVE_XLM_CONTRACT_ID`
+- `VITE_STELLAR_NETWORK_PASSPHRASE`
+- `VITE_STELLAR_RPC_PRIMARY`
+- `VITE_STELLAR_RPC_SECONDARY`
+
 ## Build Validation
 ~~~bash
 cd contracts/pasadafund && cargo test
@@ -68,7 +81,7 @@ cd ../../frontend && npm run build
 - GitHub Repository: this repository URL
 - Contract ID: `CCLVGF3AR5WGDZF4RWMLVXTIBH3YBXOV3CLAWXNB73NSKXJDHE62WMAJ`
 - Stellar Expert Link: https://stellar.expert/explorer/testnet/contract/CCLVGF3AR5WGDZF4RWMLVXTIBH3YBXOV3CLAWXNB73NSKXJDHE62WMAJ
-- Short Description: PasadaFund is a DAO treasury on Stellar that lets contributors become governance members, vote on fuel subsidy requests, and execute approved payouts transparently from a real XLM treasury.
+- Short Description: PasadaFund is a route resilience protocol on Stellar where contributors fund a reserve pool, governance members vote on transport operations support requests, and approved disbursements execute transparently on-chain.
 
 ## Screenshots
 - UI and explorer screenshots should be stored in `docs/screenshots/` for final submission.

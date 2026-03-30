@@ -1,18 +1,18 @@
-# PasadaFund Soroban Contract
+# PasadaFund Route Resilience Contract
 
 ## Project Title
-PasadaFund - Stellar Fuel Relief DAO Contract
+PasadaFund - Stellar Route Resilience Protocol Contract
 
 ## Description
-This Soroban smart contract powers PasadaFund's on-chain treasury governance. It allows contributors to fund a real XLM treasury, become DAO members, vote on subsidy proposals, and execute approved payouts directly to recipient wallets.
+This Soroban smart contract powers PasadaFund's on-chain reserve governance. It allows contributors to fund a real XLM reserve pool, become governance members, vote on route support proposals, and execute approved disbursements directly to recipient wallets.
 
 ## Vision
-Enable accountable and transparent subsidy distribution for transport workers using programmable public infrastructure on Stellar.
+Enable accountable and transparent route continuity support for transport workers using programmable public infrastructure on Stellar.
 
 ## Features
 - Real native token transfers through `soroban_sdk::token::Client`
 - Contribution tracking and member enrollment
-- Fuel subsidy proposal creation
+- Route support proposal creation
 - Member voting with on-chain threshold approval (2 votes)
 - Authorized execution flow (admin or member)
 - On-chain event emission for contribution, request, vote, and execution
@@ -23,7 +23,7 @@ Enable accountable and transparent subsidy distribution for transport workers us
 - `submit_request(proposer, recipient, amount_stroops, title, details)`
 - `vote(voter, proposal_id)`
 - `execute(caller, proposal_id)`
-- `treasury_balance()`
+- `treasury_balance()` (serves as current reserve pool balance getter)
 - `get_members()`
 - `get_member_contribution(member)`
 - `get_proposal(proposal_id)`
@@ -32,7 +32,7 @@ Enable accountable and transparent subsidy distribution for transport workers us
 
 ## Tests
 The suite includes 3 functional tests:
-1. Contribution updates treasury and adds member
+1. Contribution updates reserve pool and adds member
 2. Two-member voting reaches approval threshold
 3. Execution transfers funds and marks proposal executed
 

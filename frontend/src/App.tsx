@@ -12,6 +12,52 @@ import {
 } from './lib/stellar'
 import './App.css'
 
+const FUEL_CONTEXT = [
+  {
+    label: 'Diesel Watch (Planning Baseline)',
+    value: 'PHP 62.40/L',
+    note: 'Reference value for subsidy planning and budget conversations.',
+  },
+  {
+    label: 'Typical Jeepney Daily Fuel Need',
+    value: '32-42 liters',
+    note: 'Depends on route length, trapik, and terminal idle hours.',
+  },
+  {
+    label: 'Priority Beneficiaries',
+    value: 'Jeepney + Tricycle Groups',
+    note: 'Focused on documented routes with transparent member rosters.',
+  },
+]
+
+const EXPLORER_LINK = 'https://stellar.expert/explorer/testnet/contract/CCLVGF3AR5WGDZF4RWMLVXTIBH3YBXOV3CLAWXNB73NSKXJDHE62WMAJ'
+const REPO_LINK = 'https://github.com/adr1el-m/stellar-PasadaFund'
+
+function JeepneyBadge() {
+  return (
+    <svg className="jeepney-badge" viewBox="0 0 240 120" role="img" aria-label="Jeepney icon">
+      <defs>
+        <linearGradient id="jeepneyChrome" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffe8ad" />
+          <stop offset="100%" stopColor="#e3a72f" />
+        </linearGradient>
+      </defs>
+      <rect x="14" y="32" width="152" height="48" rx="10" fill="url(#jeepneyChrome)" />
+      <rect x="166" y="40" width="44" height="40" rx="7" fill="#f7c85d" />
+      <rect x="28" y="40" width="38" height="18" rx="3" fill="#1a1f27" />
+      <rect x="72" y="40" width="38" height="18" rx="3" fill="#1a1f27" />
+      <rect x="116" y="40" width="38" height="18" rx="3" fill="#1a1f27" />
+      <rect x="169" y="47" width="34" height="12" rx="2" fill="#1a1f27" />
+      <rect x="22" y="67" width="180" height="8" rx="4" fill="#bb7b12" />
+      <circle cx="52" cy="87" r="14" fill="#0f1218" />
+      <circle cx="52" cy="87" r="7" fill="#d8dce4" />
+      <circle cx="154" cy="87" r="14" fill="#0f1218" />
+      <circle cx="154" cy="87" r="7" fill="#d8dce4" />
+      <path d="M206 42 L228 32 L228 80 L206 80 Z" fill="#f2b73c" />
+    </svg>
+  )
+}
+
 function App() {
   const client = useMemo(() => new PasadaFundClient(), [])
   const [wallet, setWallet] = useState('')
@@ -33,8 +79,51 @@ function App() {
   const [proposalAmount, setProposalAmount] = useState('')
   const [voteId, setVoteId] = useState('1')
   const [executeId, setExecuteId] = useState('1')
+  const [presentationMode, setPresentationMode] = useState(false)
+
+  const [simDrivers, setSimDrivers] = useState('120')
+  const [simDailySubsidy, setSimDailySubsidy] = useState('80')
+  const [simDays, setSimDays] = useState('5')
 
   const hasContractConfig = client.hasContractConfiguration()
+  const approvedCount = proposals.filter((proposal) => proposal.approved).length
+  const executedCount = proposals.filter((proposal) => proposal.executed).length
+  const totalVotes = proposals.reduce((acc, proposal) => acc + proposal.votes, 0)
+  const approvalRate = proposalCount > 0 ? Math.round((approvedCount / proposalCount) * 100) : 0
+  const executionRate = approvedCount > 0 ? Math.round((executedCount / approvedCount) * 100) : 0
+  const participationScore = proposalCount > 0
+    ? Math.min(100, Math.round((totalVotes / (proposalCount * 2)) * 100))
+    : 0
+  const governanceScore = Math.round((approvalRate + executionRate + participationScore) / 3)
+
+  const simulatedBudget = useMemo(() => {
+    try {
+      const drivers = Math.max(0, Math.floor(Number(simDrivers) || 0))
+      const days = Math.max(0, Math.floor(Number(simDays) || 0))
+      const dailySubsidyStroops = parseToStroops(simDailySubsidy || '0')
+      return dailySubsidyStroops * BigInt(drivers) * BigInt(days)
+    } catch {
+      return 0n
+    }
+  }, [simDrivers, simDailySubsidy, simDays])
+
+  const projectedRunwayDays = useMemo(() => {
+    try {
+      const drivers = Math.max(0, Math.floor(Number(simDrivers) || 0))
+      if (drivers === 0) {
+        return 0
+      }
+      const dailySubsidyStroops = parseToStroops(simDailySubsidy || '0')
+      if (dailySubsidyStroops <= 0) {
+        return 0
+      }
+      const dailyBurn = dailySubsidyStroops * BigInt(drivers)
+      return Number(treasuryBalance / dailyBurn)
+    } catch {
+      return 0
+    }
+  }, [simDrivers, simDailySubsidy, treasuryBalance])
+
   const mergedHistory = useMemo(
     () => [...localHistory, ...chainHistory]
       .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
@@ -128,7 +217,7 @@ function App() {
     const amount = parseToStroops(depositAmount)
     await submitAction(
       () => client.contribute(wallet, amount),
-      'Deposit confirmed and treasury updated.',
+      'Deposit confirmed and reserve pool updated.',
       'Contribution',
       amount,
     )
@@ -142,7 +231,7 @@ function App() {
     const amount = parseToStroops(proposalAmount)
     await submitAction(
       () => client.submitRequest(wallet, recipient, amount, proposalTitle, proposalDetails),
-      'Fuel subsidy request submitted on-chain.',
+      'Route support request submitted on-chain.',
       'Submit Request',
       amount,
     )
@@ -163,17 +252,19 @@ function App() {
       setStatus('Proposal ID for execution must be a positive integer.')
       return
     }
-    await submitAction(() => client.execute(wallet, id), 'Approved payout executed from treasury.', 'Execute')
+    await submitAction(() => client.execute(wallet, id), 'Approved disbursement executed from reserve pool.', 'Execute')
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${presentationMode ? 'presentation-mode' : ''}`}>
       <header className="topbar">
-        <div>
-          <p className="brand-kicker">Stellar Fuel Relief DAO</p>
+        <div className="headline-wrap">
+          <p className="brand-kicker">Stellar Route Resilience Protocol</p>
           <h1>PasadaFund</h1>
-          <p className="tagline">Institutional-grade treasury governance for Jeepney and Tricycle transport cooperatives.</p>
+          <p className="tagline">A transparent route resilience protocol for Jeepney and Tricycle operators facing rising fuel costs across the Philippines.</p>
+          <p className="tagline-sub">Built for route associations, transport cooperatives, and LGU partners who need auditable support decisions on-chain.</p>
         </div>
+        <JeepneyBadge />
         <button
           className="action-btn"
           onClick={connectWallet}
@@ -183,16 +274,53 @@ function App() {
         </button>
       </header>
 
+      <section className="command-bar">
+        <div className="command-group">
+          <span>Hackathon Demo Controls</span>
+          <button className="action-btn ghost" onClick={() => setPresentationMode((prev) => !prev)}>
+            {presentationMode ? 'Presentation: ON' : 'Presentation: OFF'}
+          </button>
+        </div>
+        <div className="proof-links">
+          <a href={EXPLORER_LINK} target="_blank" rel="noreferrer">Live Contract</a>
+          <a href={REPO_LINK} target="_blank" rel="noreferrer">Open Repository</a>
+        </div>
+      </section>
+
+      <section className="story-grid">
+        <article className="card story-card">
+          <h2>Why PasadaFund Exists</h2>
+          <p className="microcopy">Kapag tumataas ang presyo ng diesel at gasolina, lumiit ang pang-uwi ng mga tsuper. PasadaFund coordinates a transparent relief pool where every proposal, vote, and payout is visible, verifiable, and accountable.</p>
+          <div className="story-points">
+            <p><strong>Route-first:</strong> Supporters can contribute XLM and strengthen route-level continuity planning.</p>
+            <p><strong>Transparent governance:</strong> Operational support requests are approved through on-chain voting.</p>
+            <p><strong>Direct support:</strong> Approved disbursements move from reserve pool to beneficiary wallets without hidden handling.</p>
+          </div>
+        </article>
+        <article className="card context-card">
+          <h2>Fuel Reality Snapshot</h2>
+          <div className="context-list">
+            {FUEL_CONTEXT.map((item) => (
+              <div key={item.label} className="context-item">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.note}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
       <section className={`hero-panel ${glow ? 'pulse' : ''}`}>
         <article className="metric-card">
-          <span>Treasury Balance</span>
+          <span>Reserve Pool Balance</span>
           <strong>{formatStroops(treasuryBalance)} XLM</strong>
           <small>Stored in real SAC native token units ({STROOPS_SCALE.toString()} stroops per XLM)</small>
         </article>
         <article className="metric-card">
           <span>Members</span>
           <strong>{memberCount}</strong>
-          <small>Any contributor becomes a governance member</small>
+          <small>Any contributor becomes a protocol governance member</small>
         </article>
         <article className="metric-card">
           <span>Proposals</span>
@@ -207,26 +335,85 @@ function App() {
       </section>
 
       <section className="grid">
+        <article className="card span-two">
+          <h2>Impact Simulator</h2>
+          <p className="microcopy">Quickly estimate route support requirements during demos. Adjust target drivers, daily aid, and duration to show reserve planning in real time.</p>
+          <div className="sim-grid">
+            <label>
+              Target Drivers
+              <input value={simDrivers} onChange={(event) => setSimDrivers(event.target.value)} placeholder="120" />
+            </label>
+            <label>
+              Daily Subsidy per Driver (XLM)
+              <input value={simDailySubsidy} onChange={(event) => setSimDailySubsidy(event.target.value)} placeholder="80" />
+            </label>
+            <label>
+              Program Days
+              <input value={simDays} onChange={(event) => setSimDays(event.target.value)} placeholder="5" />
+            </label>
+          </div>
+          <div className="sim-output">
+            <p><span>Estimated Budget Need:</span> <strong>{formatStroops(simulatedBudget)} XLM</strong></p>
+            <p><span>Projected Reserve Runway:</span> <strong>{projectedRunwayDays} days</strong></p>
+          </div>
+        </article>
+
         <article className="card">
-          <h2>Treasury Contribution</h2>
-          <p className="microcopy">Deposit live XLM into the DAO treasury. Input values are converted to stroops with BigInt precision.</p>
+          <h2>Governance Health</h2>
+          <p className="microcopy">Judge-friendly KPI view based on proposal and voting activity.</p>
+          <div className="health-kpis">
+            <div><span>Approval Rate</span><strong>{approvalRate}%</strong></div>
+            <div><span>Execution Rate</span><strong>{executionRate}%</strong></div>
+            <div><span>Participation Score</span><strong>{participationScore}%</strong></div>
+            <div><span>Governance Score</span><strong>{governanceScore}%</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section className="process-rail">
+        <article className="step-card">
+          <span>01</span>
+          <h3>Fund Reserve Pool</h3>
+          <p>Supporters deposit XLM into the protocol reserve pool and join governance.</p>
+        </article>
+        <article className="step-card">
+          <span>02</span>
+          <h3>Submit Operations Request</h3>
+          <p>Transport groups submit route continuity requests with wallet, route details, and rationale.</p>
+        </article>
+        <article className="step-card">
+          <span>03</span>
+          <h3>Vote On-Chain</h3>
+          <p>Members evaluate urgency and cast votes directly on Soroban.</p>
+        </article>
+        <article className="step-card">
+          <span>04</span>
+          <h3>Execute Disbursement</h3>
+          <p>Approved requests are executed from reserve pool to beneficiary wallets with full audit history.</p>
+        </article>
+      </section>
+
+      <section className="grid">
+        <article className="card">
+          <h2>Reserve Contribution</h2>
+          <p className="microcopy">Deposit live XLM into the protocol reserve pool. Input values are converted to stroops with BigInt precision for financial accuracy.</p>
           <label>
             Deposit Amount (XLM)
             <input value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} placeholder="1.2500000" />
           </label>
-          <button className="action-btn" onClick={() => void handleDeposit()} disabled={isBusy || !hasContractConfig}>Deposit to Treasury</button>
+          <button className="action-btn" onClick={() => void handleDeposit()} disabled={isBusy || !hasContractConfig}>Contribute to Reserve Pool</button>
         </article>
 
         <article className="card">
-          <h2>Fuel Subsidy Request</h2>
-          <p className="microcopy">Transport groups can submit a grant request with recipient wallet, title, and details.</p>
+          <h2>Route Support Request</h2>
+          <p className="microcopy">Transport groups can submit an operations support request with recipient wallet, title, and route-level details.</p>
           <label>
             Recipient Address
             <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="G..." />
           </label>
           <label>
             Request Title
-            <input value={proposalTitle} onChange={(event) => setProposalTitle(event.target.value)} placeholder="Week 2 Diesel Relief" />
+            <input value={proposalTitle} onChange={(event) => setProposalTitle(event.target.value)} placeholder="Week 2 Route Continuity Support" />
           </label>
           <label>
             Amount (XLM)
@@ -234,14 +421,14 @@ function App() {
           </label>
           <label>
             Proposal Details
-            <textarea value={proposalDetails} onChange={(event) => setProposalDetails(event.target.value)} placeholder="Route coverage, member count, and expected duration" />
+            <textarea value={proposalDetails} onChange={(event) => setProposalDetails(event.target.value)} placeholder="Ruta covered, driver count, operating window, and subsidy justification" />
           </label>
           <button className="action-btn" onClick={() => void handleCreateProposal()} disabled={isBusy || !hasContractConfig}>Submit Request</button>
         </article>
 
         <article className="card">
           <h2>Governance Actions</h2>
-          <p className="microcopy">Members vote and then execute approved payouts directly from the on-chain treasury.</p>
+          <p className="microcopy">Members vote first, then execute approved disbursements directly from the on-chain reserve pool.</p>
           <label>
             Vote Proposal ID
             <input value={voteId} onChange={(event) => setVoteId(event.target.value)} placeholder="1" />
@@ -299,7 +486,7 @@ function App() {
         </article>
 
         <article className="card">
-          <h2>Transaction Log</h2>
+          <h2>Transaction and Event Log</h2>
           <ul>
             {mergedHistory.length === 0 ? (
               <li className="history-item">No transactions yet.</li>

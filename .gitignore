@@ -1,0 +1,14 @@
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# Rust / Soroban
+contracts/pasadafund/target/
+
+# Environment files
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# System
+.DS_Store
