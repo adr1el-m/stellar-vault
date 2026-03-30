@@ -1,0 +1,45 @@
+:root {
+  --charcoal-1: #0b0c10;
+  --charcoal-2: #13151a;
+  --charcoal-3: #1d2027;
+  --line: rgba(255, 214, 116, 0.24);
+  --gold: #ffd469;
+  --amber-soft: #ffc657;
+  --text-strong: #f6f7fb;
+  --text-soft: #d0d6dd;
+  --text-muted: #9aa4b2;
+  --font-display: 'Rajdhani', 'Eurostile', 'Orbitron', sans-serif;
+  --font-body: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+  color-scheme: dark;
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text-soft);
+  background:
+    radial-gradient(1200px 500px at 90% -10%, rgba(255, 195, 79, 0.15), transparent 55%),
+    radial-gradient(700px 400px at -10% 30%, rgba(201, 147, 43, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--charcoal-3), var(--charcoal-2) 32%, var(--charcoal-1));
+}
+
+#root {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
