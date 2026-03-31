@@ -44,7 +44,7 @@ Through on-chain governance, transport cooperatives and contributors can propose
 
 ### Interactive Demo
 
-<video src="https://github.com/adr1el-m/stellar-PasadaFund/raw/main/frontend/public/readme/Demo.mp4" width="100%" controls></video>
+![Demo Video](frontend/public/readme/Demo.mp4)
 
 ### Platform Snapshots
 
