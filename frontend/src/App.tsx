@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import confetti from 'canvas-confetti'
 import { getAddress, requestAccess } from '@stellar/freighter-api'
 import {
   PasadaFundClient,
@@ -32,6 +31,21 @@ const FUEL_CONTEXT = [
 
 const EXPLORER_LINK = 'https://stellar.expert/explorer/testnet/contract/CCLVGF3AR5WGDZF4RWMLVXTIBH3YBXOV3CLAWXNB73NSKXJDHE62WMAJ'
 const REPO_LINK = 'https://github.com/adr1el-m/stellar-PasadaFund'
+const GITHUB_PROFILE_LINK = 'https://github.com/adr1el-m'
+const LINKEDIN_PROFILE_LINK = 'https://www.linkedin.com/in/adr1el/'
+const TX_EXPLORER_BASE = 'https://stellar.expert/explorer/testnet/tx/'
+const SUBMIT_COOLDOWN_MS = 3000
+
+type RetryActionKey = 'contribute' | 'submit' | 'vote' | 'execute'
+
+type ToastItem = {
+  id: string
+  kind: 'pending' | 'success' | 'failed'
+  title: string
+  message: string
+  hash?: string
+  retryAction?: RetryActionKey
+}
 
 function JeepneyBadge() {
   return (
@@ -83,14 +97,14 @@ function InteractiveParticles() {
       canvas.style.height = `${innerHeight}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-      const count = Math.min(75, Math.max(35, Math.floor(innerWidth / 24)))
+      const count = Math.min(90, Math.max(42, Math.floor(innerWidth / 24)))
       particles = Array.from({ length: count }, () => ({
         x: Math.random() * innerWidth,
         y: Math.random() * innerHeight,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
+        vx: (Math.random() - 0.5) * 0.32,
+        vy: (Math.random() - 0.5) * 0.32,
         r: Math.random() * 1.8 + 0.9,
-        hue: Math.random() > 0.82 ? 50 : Math.random() > 0.45 ? 202 : 350,
+        hue: Math.random() > 0.75 ? 50 : Math.random() > 0.45 ? 202 : 350,
       }))
     }
 
@@ -117,12 +131,12 @@ function InteractiveParticles() {
         const dist = Math.hypot(dx, dy)
         if (dist < 140) {
           const push = (140 - dist) / 140
-          p.vx -= (dx / (dist || 1)) * push * 0.028
-          p.vy -= (dy / (dist || 1)) * push * 0.028
+          p.vx -= (dx / (dist || 1)) * push * 0.024
+          p.vy -= (dy / (dist || 1)) * push * 0.024
         }
 
-        p.vx *= 0.99
-        p.vy *= 0.99
+        p.vx *= 0.992
+        p.vy *= 0.992
         p.x += p.vx
         p.y += p.vy
 
@@ -132,24 +146,9 @@ function InteractiveParticles() {
         if (p.y > h + 10) p.y = -10
 
         ctx.beginPath()
-        ctx.fillStyle = `hsla(${p.hue}, 92%, 62%, 0.42)`
+        ctx.fillStyle = `hsla(${p.hue}, 92%, 62%, 0.5)`
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
         ctx.fill()
-
-        for (let j = i + 1; j < particles.length; j += 1) {
-          const q = particles[j]
-          const linkDx = p.x - q.x
-          const linkDy = p.y - q.y
-          const linkDist = Math.hypot(linkDx, linkDy)
-          if (linkDist < 92) {
-            ctx.beginPath()
-            ctx.strokeStyle = `rgba(65, 170, 255, ${0.16 - linkDist / 650})`
-            ctx.lineWidth = 1
-            ctx.moveTo(p.x, p.y)
-            ctx.lineTo(q.x, q.y)
-            ctx.stroke()
-          }
-        }
       }
 
       raf = window.requestAnimationFrame(draw)
@@ -198,6 +197,13 @@ function App() {
   const [simDrivers, setSimDrivers] = useState('120')
   const [simDailySubsidy, setSimDailySubsidy] = useState('80')
   const [simDays, setSimDays] = useState('5')
+  const [docTab, setDocTab] = useState<'how' | 'glossary' | 'runbook'>('how')
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const reconnectWalletOnLoad = localStorage.getItem('pasadafund.reconnectWalletOnLoad') !== 'false'
+  const particlesEnabled = localStorage.getItem('pasadafund.particlesEnabled') !== 'false'
+  const safetyMode = localStorage.getItem('pasadafund.safetyMode') !== 'false'
+  const maxTxXlm = localStorage.getItem('pasadafund.maxTxXlm') || '250'
+  const [lastSubmitAt, setLastSubmitAt] = useState(0)
 
   const hasContractConfig = client.hasContractConfiguration()
   const approvedCount = proposals.filter((proposal) => proposal.approved).length
@@ -256,6 +262,31 @@ function App() {
     ].slice(0, 16))
   }
 
+  const pushToast = (toast: Omit<ToastItem, 'id'>) => {
+    const id = crypto.randomUUID()
+    setToasts((prev) => [...prev, { ...toast, id }].slice(-5))
+    if (toast.kind !== 'pending') {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((item) => item.id !== id))
+      }, 5200)
+    }
+    return id
+  }
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id))
+  }
+
+  const launchConfetti = async () => {
+    const confettiModule = await import('canvas-confetti')
+    void confettiModule.default({
+      particleCount: 160,
+      spread: 78,
+      startVelocity: 40,
+      colors: ['#ffca56', '#ffd977', '#e6a82d', '#f6f7fb'],
+    })
+  }
+
   const refreshDashboard = async () => {
     if (!hasContractConfig) {
       setStatus('Set VITE_PASADAFUND_CONTRACT_ID and VITE_NATIVE_XLM_CONTRACT_ID to load live data.')
@@ -292,6 +323,21 @@ function App() {
     return () => clearInterval(timer)
   }, [client])
 
+  useEffect(() => {
+    if (!reconnectWalletOnLoad) {
+      return
+    }
+
+    void getAddress().then((resp) => {
+      if (resp.address) {
+        setWallet(resp.address)
+        localStorage.setItem('pasadafund.walletAddress', resp.address)
+      }
+    }).catch(() => {
+      // ignore auto-restore failures so initial render stays smooth
+    })
+  }, [reconnectWalletOnLoad])
+
   const connectWallet = async () => {
     try {
       await requestAccess()
@@ -300,28 +346,79 @@ function App() {
         throw new Error('Freighter wallet did not return a public address')
       }
       setWallet(addrResp.address)
+      localStorage.setItem('pasadafund.walletAddress', addrResp.address)
       setStatus(`Wallet connected: ${shortAddress(addrResp.address)}`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to connect wallet')
     }
   }
 
-  const submitAction = async (fn: () => Promise<{ hash: string; rpcUrl: string }>, successMessage: string, historyAction: string, amount?: bigint) => {
-    if (!wallet) {
-      setStatus('Connect Freighter first.')
+  const disconnectWallet = () => {
+    setWallet('')
+    localStorage.removeItem('pasadafund.walletAddress')
+    setStatus('Wallet disconnected from app session. To force a fresh Freighter approval prompt, remove this site from Freighter connected dApps.')
+  }
+
+  const submitAction = async (
+    fn: () => Promise<{ hash: string; rpcUrl: string }>,
+    successMessage: string,
+    historyAction: string,
+    amount?: bigint,
+    retryAction?: RetryActionKey,
+  ) => {
+    if (Date.now() - lastSubmitAt < SUBMIT_COOLDOWN_MS) {
+      setStatus('Please wait a few seconds before submitting another transaction.')
+      pushToast({ kind: 'failed', title: 'Cooldown Active', message: 'Please wait before retrying.' })
       return
     }
 
+    if (!wallet) {
+      setStatus('Connect Freighter first.')
+      pushToast({ kind: 'failed', title: 'Wallet Required', message: 'Connect Freighter first.' })
+      return
+    }
+
+    if (safetyMode && amount !== undefined) {
+      const maxAmount = parseToStroops(maxTxXlm || '0')
+      if (maxAmount > 0n && amount > maxAmount) {
+        const message = `Amount exceeds safety cap of ${maxTxXlm} XLM.`
+        setStatus(message)
+        pushToast({ kind: 'failed', title: 'Safety Cap Blocked', message })
+        return
+      }
+    }
+
     setIsBusy(true)
+    setLastSubmitAt(Date.now())
+    const pendingId = pushToast({
+      kind: 'pending',
+      title: `${historyAction} Pending`,
+      message: 'Submitting transaction to Soroban network...',
+    })
+
     try {
       const result = await fn()
       pushHistory({ action: historyAction, status: 'success', hash: result.hash, rpcUrl: result.rpcUrl, amount })
       setStatus(`${successMessage} Tx: ${result.hash}`)
+      removeToast(pendingId)
+      pushToast({
+        kind: 'success',
+        title: `${historyAction} Success`,
+        message: successMessage,
+        hash: result.hash,
+      })
       await refreshDashboard()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Transaction failed'
       pushHistory({ action: historyAction, status: 'failed', hash: '-', rpcUrl: 'n/a', note: message, amount })
       setStatus(message)
+      removeToast(pendingId)
+      pushToast({
+        kind: 'failed',
+        title: `${historyAction} Failed`,
+        message,
+        retryAction,
+      })
     } finally {
       setIsBusy(false)
     }
@@ -334,10 +431,13 @@ function App() {
       'Deposit confirmed and reserve pool updated.',
       'Contribution',
       amount,
+      'contribute',
     )
 
     setGlow(true)
-    void confetti({ particleCount: 160, spread: 78, startVelocity: 40, colors: ['#ffca56', '#ffd977', '#e6a82d', '#f6f7fb'] })
+    if (particlesEnabled) {
+      void launchConfetti()
+    }
     setTimeout(() => setGlow(false), 1300)
   }
 
@@ -348,6 +448,7 @@ function App() {
       'Route support request submitted on-chain.',
       'Submit Request',
       amount,
+      'submit',
     )
   }
 
@@ -357,7 +458,7 @@ function App() {
       setStatus('Proposal ID for voting must be a positive integer.')
       return
     }
-    await submitAction(() => client.vote(wallet, id), 'Vote recorded on-chain.', 'Vote')
+    await submitAction(() => client.vote(wallet, id), 'Vote recorded on-chain.', 'Vote', undefined, 'vote')
   }
 
   const handleExecute = async () => {
@@ -366,13 +467,36 @@ function App() {
       setStatus('Proposal ID for execution must be a positive integer.')
       return
     }
-    await submitAction(() => client.execute(wallet, id), 'Approved disbursement executed from reserve pool.', 'Execute')
+    if (safetyMode) {
+      const approved = window.confirm(`Execute proposal #${id}? This will move funds on-chain.`)
+      if (!approved) {
+        setStatus('Execution cancelled by user safety confirmation.')
+        return
+      }
+    }
+    await submitAction(() => client.execute(wallet, id), 'Approved disbursement executed from reserve pool.', 'Execute', undefined, 'execute')
+  }
+
+  const retryFailedAction = (action: RetryActionKey) => {
+    if (action === 'contribute') {
+      void handleDeposit()
+      return
+    }
+    if (action === 'submit') {
+      void handleCreateProposal()
+      return
+    }
+    if (action === 'vote') {
+      void handleVote()
+      return
+    }
+    void handleExecute()
   }
 
   if (!hasEnteredDashboard) {
     return (
       <div className="landing-shell">
-        <InteractiveParticles />
+        {particlesEnabled ? <InteractiveParticles /> : null}
         <section className="landing-hero">
           <p className="brand-kicker">Stellar Route Resilience Protocol</p>
           <h1>PasadaFund</h1>
@@ -387,6 +511,20 @@ function App() {
             <span>On-chain Votes</span>
             <span>Soroban-backed Transparency</span>
           </div>
+          <div className="landing-metrics">
+            <article>
+              <span>Reserve</span>
+              <strong>{formatStroops(treasuryBalance)} XLM</strong>
+            </article>
+            <article>
+              <span>Members</span>
+              <strong>{memberCount}</strong>
+            </article>
+            <article>
+              <span>Proposals</span>
+              <strong>{proposalCount}</strong>
+            </article>
+          </div>
           <div className="landing-actions">
             <button className="action-btn" onClick={() => setHasEnteredDashboard(true)}>
               Enter Dashboard
@@ -394,6 +532,11 @@ function App() {
             <button className="action-btn ghost" onClick={connectWallet} disabled={isBusy}>
               {wallet ? `Wallet ${shortAddress(wallet)}` : 'Connect Freighter'}
             </button>
+            {wallet ? (
+              <button className="action-btn ghost danger" onClick={disconnectWallet} disabled={isBusy}>
+                Logout Freighter
+              </button>
+            ) : null}
           </div>
           <div className="proof-links">
             <a href={EXPLORER_LINK} target="_blank" rel="noreferrer">Live Contract</a>
@@ -406,6 +549,11 @@ function App() {
 
         <section className="landing-visual">
           <JeepneyBadge />
+          <div className="landing-live-note">
+            <span>Live Network</span>
+            <strong>{networkLabel}</strong>
+            <small>{hasContractConfig ? 'Contract configuration loaded' : 'Missing contract environment variables'}</small>
+          </div>
           <div className="landing-stats">
             <article>
               <span>Reserve Design</span>
@@ -427,13 +575,18 @@ function App() {
 
   return (
     <div className="app-shell">
-      <InteractiveParticles />
+      {particlesEnabled ? <InteractiveParticles /> : null}
       <header className="topbar">
         <div className="headline-wrap">
           <p className="brand-kicker">Stellar Route Resilience Protocol</p>
           <h1>PasadaFund</h1>
           <p className="tagline">A transparent route resilience protocol for Jeepney and Tricycle operators facing rising fuel costs across the Philippines.</p>
           <p className="tagline-sub">Built for route associations, transport cooperatives, and LGU partners who need auditable support decisions on-chain.</p>
+          <div className="status-chips">
+            <span>{networkLabel}</span>
+            <span>{wallet ? `Connected: ${shortAddress(wallet)}` : 'Wallet not connected'}</span>
+            <span>{hasContractConfig ? 'Contracts configured' : 'Contracts not configured'}</span>
+          </div>
         </div>
         <div className="topbar-aside">
           <JeepneyBadge />
@@ -441,6 +594,11 @@ function App() {
             <button className="action-btn" onClick={connectWallet} disabled={isBusy}>
               {wallet ? `Wallet ${shortAddress(wallet)}` : 'Connect Freighter'}
             </button>
+            {wallet ? (
+              <button className="action-btn ghost danger" onClick={disconnectWallet} disabled={isBusy}>
+                Logout Freighter
+              </button>
+            ) : null}
             <button className="action-btn ghost" onClick={() => setHasEnteredDashboard(false)}>
               Back to Landing
             </button>
@@ -457,6 +615,86 @@ function App() {
             <span>Open Repository</span>
           </a>
         </div>
+      </section>
+
+      <section className="dashboard-intro">
+        <article>
+          <span>Mission</span>
+          <p>Turn volatile fuel economics into trackable, transparent on-chain support for transport operators.</p>
+        </article>
+        <article>
+          <span>Current Pulse</span>
+          <p>{status}</p>
+        </article>
+      </section>
+
+      <section className="docs-panel">
+        <article className="card span-two">
+          <div className="docs-head">
+            <h2>Protocol Guide</h2>
+            <div className="docs-tabs" role="tablist" aria-label="Protocol guide tabs">
+              <button
+                className={`doc-tab ${docTab === 'how' ? 'active' : ''}`}
+                onClick={() => setDocTab('how')}
+                role="tab"
+                aria-selected={docTab === 'how'}
+              >
+                How It Works
+              </button>
+              <button
+                className={`doc-tab ${docTab === 'glossary' ? 'active' : ''}`}
+                onClick={() => setDocTab('glossary')}
+                role="tab"
+                aria-selected={docTab === 'glossary'}
+              >
+                Glossary
+              </button>
+              <button
+                className={`doc-tab ${docTab === 'runbook' ? 'active' : ''}`}
+                onClick={() => setDocTab('runbook')}
+                role="tab"
+                aria-selected={docTab === 'runbook'}
+              >
+                Demo Runbook
+              </button>
+            </div>
+          </div>
+
+          {docTab === 'how' ? (
+            <ol className="docs-list">
+              <li>Contributors deposit XLM into the reserve pool and become governance members.</li>
+              <li>Transport groups submit support requests with recipient, amount, and rationale.</li>
+              <li>Members vote on proposals directly on Soroban smart contracts.</li>
+              <li>Approved proposals are executed and sent from reserve pool to recipient wallet.</li>
+              <li>Transactions and events are reflected in the dashboard activity logs for auditing.</li>
+            </ol>
+          ) : docTab === 'glossary' ? (
+            <dl className="glossary-list">
+              <div><dt>Stroops</dt><dd>Smallest XLM unit. 1 XLM = 10,000,000 stroops.</dd></div>
+              <div><dt>Reserve Pool</dt><dd>On-chain treasury used to fund approved route support requests.</dd></div>
+              <div><dt>Proposal</dt><dd>A support request submitted for governance review and voting.</dd></div>
+              <div><dt>Execution</dt><dd>On-chain disbursement of approved proposal funds to recipient wallet.</dd></div>
+              <div><dt>RPC</dt><dd>Endpoint used by the app to query chain state and submit signed transactions.</dd></div>
+            </dl>
+          ) : (
+            <ol className="docs-list">
+              <li>Connect Freighter and confirm the wallet is shown in the status chips.</li>
+              <li>Deposit 1 XLM into the reserve pool to seed governance membership.</li>
+              <li>Submit a request using dummy values: title "Week 2 Route Continuity", amount "25", and a testnet recipient.</li>
+              <li>Cast votes from member wallets until threshold is reached.</li>
+              <li>Execute the approved proposal and verify hash in the transaction log and explorer.</li>
+              <li>If demo wallets are unavailable, use Impact Simulator to show reserve runway planning logic.</li>
+            </ol>
+          )}
+
+          <div className="docs-links">
+            <a href={EXPLORER_LINK} target="_blank" rel="noreferrer">View Live Contract</a>
+            <a href={REPO_LINK} target="_blank" rel="noreferrer" className="repo-link">
+              <GitHubMark />
+              <span>Open Repository</span>
+            </a>
+          </div>
+        </article>
       </section>
 
       <section className="story-grid">
@@ -678,7 +916,39 @@ function App() {
         </article>
       </section>
 
-      <footer className="footer-note">{status}</footer>
+      <footer className="app-footer">
+        <p className="footer-note">{status}</p>
+        <div className="credits-bar">
+          <span>Made by Adriel Magalona</span>
+          <div className="credits-links">
+            <a href={GITHUB_PROFILE_LINK} target="_blank" rel="noreferrer" className="repo-link">
+              <GitHubMark />
+              <span>GitHub</span>
+            </a>
+            <a href={LINKEDIN_PROFILE_LINK} target="_blank" rel="noreferrer">LinkedIn</a>
+          </div>
+        </div>
+      </footer>
+
+      <aside className="toast-stack" aria-live="polite" aria-atomic="true">
+        {toasts.map((toast) => (
+          <article key={toast.id} className={`toast-item ${toast.kind}`}>
+            <header>
+              <strong>{toast.title}</strong>
+              <button onClick={() => removeToast(toast.id)} aria-label="Dismiss notification">×</button>
+            </header>
+            <p>{toast.message}</p>
+            <div className="toast-actions">
+              {toast.hash ? (
+                <a href={`${TX_EXPLORER_BASE}${toast.hash}`} target="_blank" rel="noreferrer">View Transaction</a>
+              ) : null}
+              {toast.retryAction ? (
+                <button onClick={() => toast.retryAction && retryFailedAction(toast.retryAction)}>Retry</button>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </aside>
     </div>
   )
 }
