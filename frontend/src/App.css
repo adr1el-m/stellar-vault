@@ -606,6 +606,33 @@ h2 {
   box-shadow: 0 18px 34px rgba(5, 10, 18, 0.5), inset 0 1px 0 rgba(83, 182, 255, 0.14);
 }
 
+.reveal-card {
+  opacity: 0;
+  transform: translate3d(var(--reveal-x, 0), var(--reveal-y, 22px), 0) scale(0.985);
+  filter: saturate(0.9);
+  transition: opacity 620ms cubic-bezier(0.2, 0.65, 0.2, 1),
+    transform 620ms cubic-bezier(0.2, 0.65, 0.2, 1),
+    filter 620ms cubic-bezier(0.2, 0.65, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+.reveal-card.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: saturate(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-card,
+  .reveal-card.is-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}
+
 .sim-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

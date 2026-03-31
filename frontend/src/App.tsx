@@ -338,6 +338,75 @@ function App() {
     })
   }, [reconnectWalletOnLoad])
 
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll<HTMLElement>([
+      '.landing-hero',
+      '.landing-visual',
+      '.landing-metrics article',
+      '.landing-stats article',
+      '.dashboard-intro article',
+      '.metric-card',
+      '.card',
+      '.step-card',
+    ].join(',')))
+
+    if (targets.length === 0) {
+      return
+    }
+
+    const directions: Array<[number, number]> = [
+      [0, 28],
+      [0, -28],
+      [28, 0],
+      [-28, 0],
+      [20, 20],
+      [-20, 20],
+      [20, -20],
+      [-20, -20],
+    ]
+
+    targets.forEach((element, index) => {
+      const [x, y] = directions[index % directions.length]
+      element.style.setProperty('--reveal-x', `${x}px`)
+      element.style.setProperty('--reveal-y', `${y}px`)
+      element.style.setProperty('--reveal-delay', `${Math.min(index * 38, 480)}ms`)
+      element.classList.add('reveal-card')
+    })
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return
+          }
+          ;(entry.target as HTMLElement).classList.add('is-visible')
+          observer.unobserve(entry.target)
+        })
+      },
+      {
+        threshold: 0.15,
+        rootMargin: '0px 0px -6% 0px',
+      },
+    )
+
+    targets.forEach((element) => observer.observe(element))
+
+    const fallback = window.setTimeout(() => {
+      targets.forEach((element) => element.classList.add('is-visible'))
+    }, 1000)
+
+    return () => {
+      window.clearTimeout(fallback)
+      observer.disconnect()
+      targets.forEach((element) => {
+        element.classList.remove('reveal-card', 'is-visible')
+        element.style.removeProperty('--reveal-x')
+        element.style.removeProperty('--reveal-y')
+        element.style.removeProperty('--reveal-delay')
+      })
+    }
+  }, [hasEnteredDashboard])
+
   const connectWallet = async () => {
     try {
       await requestAccess()
